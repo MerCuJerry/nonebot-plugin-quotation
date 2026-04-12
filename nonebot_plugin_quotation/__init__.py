@@ -28,17 +28,17 @@ from nonebot_plugin_alconna import on_alconna, Match, get_message_id, AlconnaMat
 from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply  # noqa: E402
 from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 
-class Config(BaseModel):
+class QuotationPluginConfig(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
 __version__ = "0.1.0.post2"
 __plugin_meta__ = PluginMetadata(
-    name="Quotation",
-    description="简单的语录插件",
-    usage="",
+    name="语录插件",
+    description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
+    usage="来点",
     type="application",
     homepage="https://github.com/MerCuJerry/nonebot-plugin-quotation",
-    config=Config,
+    config=QuotationPluginConfig,
     supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna"),
     extra={
         "version": __version__,
@@ -54,70 +54,70 @@ async def checker(person: Match[str]) -> bool:
     else:
         return True
 
-quote_matcher = on_alconna(
+quotation_matcher = on_alconna(
     Alconna("来点", Args["person", AnyString], meta=CommandMeta(description="来一张群友的怪话", compact=True)),
     after_rule=checker,
     priority=2,
     block=True)
 
-class TrustedUserPermissionExtension(Extension):
+class QuotationTrustedUserPermissionExtension(Extension):
     @property
     def priority(self) -> int:
         return 10
 
     @property
     def id(self) -> str:
-        return "TrustedUserPermissionExtension"
+        return "QuotationTrustedUserPermissionExtension"
     
     async def permission_check(self, bot, event, medium) -> bool:
-        return event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(Config).trusted_user
+        return event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user
 
-quote_update = on_alconna(
+quotation_update = on_alconna(
     Alconna("更新语录", meta=CommandMeta(description="刷新怪话缓存", hide=True, hide_shortcut=True)),
-    extensions=[TrustedUserPermissionExtension()],
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=5,
     block=True)
 
-quote_query = on_alconna(
+quotation_query = on_alconna(
     Alconna("查询语录", meta=CommandMeta(description="查询怪话", hide=True, hide_shortcut=True)),
-    extensions=[TrustedUserPermissionExtension()],
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=5,
     block=True)
 
-quote_add = on_alconna(
+quotation_add = on_alconna(
     Alconna("添加", Args["person", str], meta=CommandMeta(description="添加一张群友的怪话", compact=True)),
     use_cmd_start=True,
     priority=5,
     block=True)
 
-quote_audit = on_alconna(
+quotation_audit = on_alconna(
     Alconna("审查语录", meta=CommandMeta(description="审查怪话", hide=True, hide_shortcut=True)),
-    extensions=[TrustedUserPermissionExtension()],
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=5,
     block=True)
 
-symlink = on_alconna(
+quotation_symlink = on_alconna(
     Alconna("查询语录别名", meta=CommandMeta(description="查询语录别名", hide=True, hide_shortcut=True)),
-    extensions=[TrustedUserPermissionExtension()],
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=5,
     block=True)
 
-symlink_create = on_alconna(
+quotation_symlink_create = on_alconna(
     Alconna(
         "添加语录别名",
         Args["name", AnyString]["person", return_index()].separate('>'),
         meta=CommandMeta(description="添加语录别名", hide=True, hide_shortcut=True, compact=True)
     ),
-    extensions=[TrustedUserPermissionExtension()],
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=2,
     block=True)
 
-async def checker_symlink(person: Match[str]) -> bool:
+async def checker_quotation_symlink(person: Match[str]) -> bool:
     try:
         [k.name for k in (await return_symlink()).keys()].index(person.result)
     except ValueError:
@@ -125,32 +125,32 @@ async def checker_symlink(person: Match[str]) -> bool:
     else:
         return True
 
-symlink_del = on_alconna(
+quotation_symlink_del = on_alconna(
     Alconna(
         "删除语录别名",
         Args["person", AnyString],
         meta=CommandMeta(description="删除语录别名", hide=True, hide_shortcut=True, compact=True)
     ),
-    after_rule=checker_symlink,
-    extensions=[TrustedUserPermissionExtension()],
+    after_rule=checker_quotation_symlink,
+    extensions=[QuotationTrustedUserPermissionExtension()],
     use_cmd_start=True,
     priority=2,
     block=True)
 
-@quote_matcher.handle()
-async def qmhandler(person : Match[str], state: T_State):
+@quotation_matcher.handle()
+async def qm_handler(person : Match[str], state: T_State):
     path = await send_quo(person.result)
     state["quotation_last_path"] = path
     await UniMessage([Reply(get_message_id()), Image(raw=path.read_bytes())]).send()
 
-async def quote_checker(bot: Bot, event: Event = Received("delete_quote")) -> Event | None:
-    if str(event.get_message()) == "删除语录" and (event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(Config).trusted_user):
+async def quotation_checker(bot: Bot, event: Event = Received("delete_quote")) -> Event | None:
+    if str(event.get_message()) == "删除语录" and (event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user):
         return event
     else:
         await handle_event(bot, event)
 
-@quote_matcher.receive("delete_quote")
-async def quotereceive(matcher: Matcher, state: T_State, event: Event = Depends(quote_checker)):
+@quotation_matcher.receive("delete_quote")
+async def quotation_receive(matcher: Matcher, state: T_State, event: Event = Depends(quotation_checker)):
     try:
         state["quotation_last_path"].unlink()
         await matcher.finish("删除成功")
@@ -158,8 +158,8 @@ async def quotereceive(matcher: Matcher, state: T_State, event: Event = Depends(
         await matcher.finish("文件未找到")
         
 
-@quote_update.handle()
-async def quoteupdatehandler(matcher: Matcher):
+@quotation_update.handle()
+async def quotation_update_handler(matcher: Matcher):
     try:
         await init_quotation()
     except Exception:
@@ -167,22 +167,22 @@ async def quoteupdatehandler(matcher: Matcher):
     else:
         await matcher.finish("更新完毕")
 
-@quote_query.handle()
-async def queryhandler(matcher: Matcher):
+@quotation_query.handle()
+async def quotation_query_handler(matcher: Matcher):
     query_sep = '/'
     query_head = '当前语录列表： \n'
     await matcher.finish(query_head+query_sep.join(await return_index()))
 
 # quote add
-@quote_add.handle()
-async def addhandler(person : Match[str], state: T_State):
+@quotation_add.handle()
+async def quotation_add_handler(person : Match[str], state: T_State):
     state["add_path"] = person.result
 
-@quote_add.got("arg", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
-async def addgot(matcher: Matcher, bot: Bot, event: Event, state: T_State, arg: Message = Arg()):
+@quotation_add.got("arg", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
+async def quotation_add_got(matcher: Matcher, bot: Bot, event: Event, state: T_State, arg: Message = Arg()):
     if "image" not in arg:
         await matcher.finish("添加出错请重新添加 (回复中需要包含至少一张图片)")
-    if(event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(Config).trusted_user):
+    if(event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user):
         for pic in arg.get("image"):
             image_url = pic.data["url"]
         try:
@@ -204,8 +204,8 @@ async def addgot(matcher: Matcher, bot: Bot, event: Event, state: T_State, arg: 
             await matcher.finish("添加成功，等待审查")
 
 # audit 
-@quote_audit.handle()
-async def audithandler(matcher: Matcher, state: T_State):
+@quotation_audit.handle()
+async def quotation_audit_handler(matcher: Matcher, state: T_State):
     try:
         audit_path = await audit()
     except Exception as _e:
@@ -218,8 +218,8 @@ async def audithandler(matcher: Matcher, state: T_State):
         else:
             await matcher.finish("没有待审查的语录了哦")
 
-@quote_audit.got("arg_audit", prompt=MessageTemplate("该图片添加到{audit_path_name}，请输入审查结果，发送“通过”以通过审查，发送“拒绝”以拒绝审查"))
-async def auditgot(matcher: Matcher, state: T_State, arg_audit: Message = Arg()):
+@quotation_audit.got("arg_audit", prompt=MessageTemplate("该图片添加到{audit_path_name}，请输入审查结果，发送“通过”以通过审查，发送“拒绝”以拒绝审查"))
+async def quotation_audit_got(matcher: Matcher, state: T_State, arg_audit: Message = Arg()):
     if not state["audit_path"].is_file():
         await matcher.finish("需要审查的语录已经被审查")
     if str(arg_audit) == "通过":
@@ -235,14 +235,14 @@ async def auditgot(matcher: Matcher, state: T_State, arg_audit: Message = Arg())
     else:
         await matcher.finish("输入有误，请重新输入")
 
-# symlink
-@symlink.handle()
-async def symlinkhandler(matcher: Matcher):
+# quotation_symlink
+@quotation_symlink.handle()
+async def quotation_symlink_handler(matcher: Matcher):
     formatted_str = "\n".join(f"{key.name} --> {value.name}" for key, value in (await return_symlink()).items())
     await matcher.finish(formatted_str)
 
-@symlink_create.handle()
-async def symlinkChandler(matcher: Matcher, name: Match[str] = AlconnaMatch("name"), person: Match[str] = AlconnaMatch("person")):
+@quotation_symlink_create.handle()
+async def quotation_symlink_create_handler(matcher: Matcher, name: Match[str] = AlconnaMatch("name"), person: Match[str] = AlconnaMatch("person")):
     try:
         await create_symlink(name.result, person.result)
     except AssertionError:
@@ -256,8 +256,8 @@ async def symlinkChandler(matcher: Matcher, name: Match[str] = AlconnaMatch("nam
     finally:
         await matcher.finish()
 
-@symlink_del.handle()
-async def symlinkDhandler(matcher: Matcher, person: Match[str]):
+@quotation_symlink_del.handle()
+async def quotation_symlink_del_handler(matcher: Matcher, person: Match[str]):
     try:
         await del_symlink(person.result)
     except AssertionError:
