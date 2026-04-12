@@ -1,4 +1,4 @@
-from nonebot import require, get_plugin_config
+from nonebot import require, get_plugin_config, logger
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 from nonebot.typing import T_State
 from nonebot.adapters import Event, MessageTemplate, Message, Bot
@@ -24,14 +24,14 @@ from typing import List
 from nepattern import AnyString
 from arclet.alconna import Alconna, CommandMeta, Args
 require("nonebot_plugin_alconna")
-from nonebot_plugin_alconna import on_alconna, Match, AlconnaMatch  # noqa: E402
-from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply, MsgId, UniMsg  # noqa: E402
+from nonebot_plugin_alconna import on_alconna, Match, AlconnaMatch, AlconnaMatcher  # noqa: E402
+from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply, MsgId  # noqa: E402
 from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 
 class QuotationPluginConfig(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.1.post1"
+__version__ = "0.1.1.post2"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
@@ -90,7 +90,7 @@ quotation_query = on_alconna(
     block=True)
 
 quotation_add = on_alconna(
-    Alconna("添加", Args["person", str], meta=CommandMeta(description="添加一张群友的怪话", compact=True)),
+    Alconna("添加", Args["person", str]["image?", Image].separate(''), meta=CommandMeta(description="添加一张群友的怪话", compact=True)),
     use_cmd_start=True,
     priority=5,
     block=True)
@@ -164,7 +164,8 @@ async def quotation_receive(matcher: Matcher, state: T_State, event: Event = Dep
 async def quotation_update_handler(matcher: Matcher):
     try:
         await init_quotation()
-    except Exception:
+    except Exception as e:
+        logger.error(e)
         await matcher.finish("更新错误")
     else:
         await matcher.finish("更新完毕")
@@ -177,28 +178,38 @@ async def quotation_query_handler(matcher: Matcher):
 
 # quote add
 @quotation_add.handle()
-async def quotation_add_handler(person : Match[str], state: T_State):
+async def quotation_add_handler(matcher: AlconnaMatcher, person : Match[str], state: T_State, image: Match[Image]):
     state["add_path"] = person.result
+    if image.available:
+        matcher.set_path_arg("image", image.result)
 
-@quotation_add.got("arg", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
-async def quotation_add_got(matcher: Matcher, bot: Bot, event: Event, state: T_State, msg: UniMsg):
-    if not msg.has(Image):
-        await matcher.finish("添加出错请重新添加 (回复中需要包含至少一张图片)")
+@quotation_add.got_path("image", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
+async def quotation_add_got(matcher: AlconnaMatcher, bot: Bot, event: Event, state: T_State, image: Image):
     if await perm_checker(bot, event):
-        for image in msg[Image]:
-            try:
-                await save_pic(state["add_path"], image.raw_bytes)
-            except Exception:
-                await matcher.finish("添加失败了哦，请重新添加")
-    else:
-        image = msg[Image, 0]
-        try: 
-            await save_pic_audit(state["add_path"], image.raw_bytes, event.get_user_id())
-        except AlreadyExistsError:
-            await matcher.finish("你已经有待审查的语录了哦，请等待审查结果")
-        except Exception:
+        try:
+            if image.raw:
+                await save_pic(state["add_path"], path=image.save())
+            elif image.url:
+                await save_pic(state["add_path"], url=image.url)
+        except Exception as e:
+            logger.error(e)
             await matcher.finish("添加失败了哦，请重新添加")
-    await matcher.finish("添加成功，等待审查")
+        else:
+            await matcher.finish("添加成功，已添加至语录")
+    else:
+        try:
+            if image.raw:
+                await save_pic_audit(state["add_path"], event.get_user_id(), path=image.save())
+            elif image.url:
+                await save_pic_audit(state["add_path"], event.get_user_id(), url=image.url)
+        except AlreadyExistsError as e:
+            logger.error(e)
+            await matcher.finish("你已经有待审查的语录了哦，请等待审查结果")
+        except Exception as e:
+            logger.error(e)
+            await matcher.finish("添加失败了哦，请重新添加")
+        else:
+            await matcher.finish("添加成功，等待审查")
 
 # audit 
 @quotation_audit.handle()
@@ -222,7 +233,8 @@ async def quotation_audit_got(matcher: Matcher, state: T_State, arg_audit: Messa
     if arg_audit.extract_plain_text() == "通过":
         try:
             await rename_pic(state["audit_path"])
-        except Exception:
+        except Exception as e:
+            logger.error(e)
             await matcher.finish("审查通过，但添加至语录失败了")
         else:
             await matcher.finish("审查通过，已添加至语录")
@@ -244,11 +256,14 @@ async def quotation_symlink_create_handler(matcher: Matcher, name: Match[str] = 
         await create_symlink(name.result, person.result)
     except AssertionError:
         await matcher.send("存在这样的语录别名或语录")
-    except TypeError:
+    except TypeError as e:
+        logger.error(e)
         await matcher.send("请检查命令格式!")
     except OSError as e:
+        logger.error(e)
         await matcher.send("创建语录别名失败," + str(e))
     except Exception as e:
+        logger.error(e)
         await matcher.send("出错了..." + str(e))
     else:
         await matcher.send("添加成功")
@@ -262,6 +277,7 @@ async def quotation_symlink_del_handler(matcher: Matcher, person: Match[str]):
     except AssertionError:
         await matcher.send("没有那样的别名哦")
     except Exception as e:
+        logger.error(e)
         await matcher.send("出错了..." + str(e))
     else:
         await matcher.send("删除成功")
