@@ -1,0 +1,24 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: "3.12"
+        version: 'latest'
+    - name: Build Package
+      run: uv build
+    - name: Publish distribution to PyPI with uv
+      run: uv publish --token ${{ secrets.PYPI_API_TOKEN }}
