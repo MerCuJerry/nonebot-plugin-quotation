@@ -31,7 +31,7 @@ from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 class QuotationPluginConfig(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.0.post2"
+__version__ = "0.1.0.post3"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
@@ -249,8 +249,10 @@ async def quotation_symlink_create_handler(matcher: Matcher, name: Match[str] = 
         await matcher.send("存在这样的语录别名或语录")
     except TypeError:
         await matcher.send("请检查命令格式!")
-    except Exception:
-        await matcher.send("出错了...怎么回事呢?")
+    except OSError as e:
+        await matcher.send("创建语录别名失败," + str(e))
+    except Exception as e:
+        await matcher.send("出错了..." + str(e))
     else:
         await matcher.send("添加成功")
     finally:
@@ -262,8 +264,8 @@ async def quotation_symlink_del_handler(matcher: Matcher, person: Match[str]):
         await del_symlink(person.result)
     except AssertionError:
         await matcher.send("没有那样的别名哦")
-    except Exception:
-        await matcher.send("出错了...怎么回事呢?")
+    except Exception as e:
+        await matcher.send("出错了..." + str(e))
     else:
         await matcher.send("删除成功")
     finally:
