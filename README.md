@@ -86,5 +86,5 @@ quotation_trusted_user=[]
 | {COMMAND_START}添加(参数) | 所有人 | 否 | 所有 | 同上 |
 | {COMMAND_START}审查语录 | SUPERUSER & 信任用户 | 否 | 所有 | 同上 |
 | {COMMAND_START}查询语录别名 | SUPERUSER & 信任用户 | 否 | 所有 | 同上 |
-| {COMMAND_START}添加语录别名 | SUPERUSER & 信任用户 | 否 | 所有 | 同上 |
+| {COMMAND_START}添加语录别名(参数1)>参数(2) | SUPERUSER & 信任用户 | 否 | 所有 | 同上,在(参数1)位置下添加一个指向(参数2)的软链接 |
 | {COMMAND_START}删除语录别名 | SUPERUSER & 信任用户 | 否 | 所有 | 同上 |
