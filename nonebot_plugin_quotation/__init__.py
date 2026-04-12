@@ -31,7 +31,7 @@ from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 class QuotationPluginConfig(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.1"
+__version__ = "0.1.1.post1"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
