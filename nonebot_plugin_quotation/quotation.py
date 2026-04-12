@@ -15,7 +15,7 @@ def init_quotation() -> bool:
     try:
         for QUO_DIR in QUO_PATH.iterdir():
             if not QUO_DIR.is_symlink():
-                store.get_plugin_cache_file(str(QUO_DIR.name + ".json")).write_text(
+                store.get_plugin_config_file(str(QUO_DIR.name + ".json")).write_text(
                     JSONEncoder().encode( [key.name for key in QUO_DIR.iterdir()] ),
                     encoding="u8",
                 )
@@ -26,7 +26,7 @@ def init_quotation() -> bool:
 
 def send_quo(args: str) -> Path:
     PIC_DIR = QUO_PATH / args
-    ENSURE_THIS_PATH =  store.get_plugin_cache_file(str(args + ".json")) if not PIC_DIR.is_symlink() else  store.get_plugin_cache_file(str(PIC_DIR.readlink().name + ".json"))
+    ENSURE_THIS_PATH =  store.get_plugin_config_file(str(args + ".json")) if not PIC_DIR.is_symlink() else  store.get_plugin_cache_file(str(PIC_DIR.readlink().name + ".json"))
     ensure_pic_use: List[str] = JSONDecoder().decode(ENSURE_THIS_PATH.read_text(encoding="u8"))
     try:
         randompic = random.choice(ensure_pic_use)
