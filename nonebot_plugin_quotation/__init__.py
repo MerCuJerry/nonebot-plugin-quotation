@@ -122,6 +122,7 @@ async def checker_symlink(person: Match[str]) -> bool:
         return False
     else:
         return True
+
 symlink_del = on_alconna(
     Alconna(
         "删除语录别名",
@@ -224,8 +225,7 @@ async def auditgot(matcher: Matcher, state: T_State, arg_audit: Message = Arg())
 # symlink
 @symlink.handle()
 async def symlinkhandler(matcher: Matcher):
-    symlink_dict = return_symlink()
-    formatted_str = "\n".join(f"{key.name} --> {value.name}" for key, value in symlink_dict.items())
+    formatted_str = "\n".join(f"{key.name} --> {value.name}" for key, value in return_symlink().items())
     await matcher.finish(formatted_str)
 
 @symlink_create.handle()
