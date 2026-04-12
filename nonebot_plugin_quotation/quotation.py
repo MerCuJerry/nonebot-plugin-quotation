@@ -1,9 +1,7 @@
 from pathlib import Path
 from json import JSONEncoder, JSONDecoder
 import random
-from typing import Optional, List, Dict, Tuple
-from httpx import AsyncClient
-import ssl
+from typing import Optional, List, Dict
 import hashlib
 from nonebot import require
 require("nonebot_plugin_localstore")
@@ -43,33 +41,22 @@ async def return_index() -> List[str]:
     except ValueError as e:
         raise e from e
 
-async def download_pic(url: str) -> Tuple[bytes, str]:
-    ctx = ssl.create_default_context()
-    ctx.set_ciphers('@SECLEVEL=2:ECDH+AESGCM:ECDH+CHACHA20:ECDH+AES:DHE+AES:AESGCM:!aNULL:!eNULL:!aDSS:!SHA1:!AESCCM:!PSK')
-    async with AsyncClient(verify=ctx) as client:
-        image_bytes = await client.get(url)
-        md5 = hashlib.md5()
-        md5.update(image_bytes.content)
-        return image_bytes.content, md5.hexdigest()
-
-async def save_pic(arg: str, url: str):
+async def save_pic(arg: str, raw_bytes: bytes):
     assert arg != "" and arg is not None
     PIC_DIR = QUO_PATH / arg
     if not PIC_DIR.exists():
         PIC_DIR.mkdir(parents=False)
-    image_bytes, md5_hex = await download_pic(url)
-    PIC_PATH = PIC_DIR / str(md5_hex + ".jpg")
-    PIC_PATH.write_bytes(image_bytes)
+    PIC_PATH = PIC_DIR / str(hashlib.md5(raw_bytes).hexdigest() + ".jpg")
+    PIC_PATH.write_bytes(raw_bytes)
 
-async def save_pic_audit(arg: str, url: str, sender: str):
+async def save_pic_audit(arg: str, raw_bytes: bytes, sender: str):
     assert arg != "" and arg is not None
     list_return = [key.name for key in (store.get_plugin_cache_dir()).glob("*@" + sender + "@*")]
     if len(list_return) != 0:
         raise AlreadyExistsError()
-    image_bytes, md5_hex = await download_pic(url)
     store.get_plugin_cache_file(
-        str(arg + "@" + sender + "@" + md5_hex + ".jpg")
-    ).write_bytes(image_bytes)
+        str(arg + "@" + sender + "@" + hashlib.md5(raw_bytes).hexdigest() + ".jpg")
+    ).write_bytes(raw_bytes)
 
 async def rename_pic(arg: Path):
     assert arg is not None

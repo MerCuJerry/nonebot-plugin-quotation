@@ -24,8 +24,8 @@ from typing import List
 from nepattern import AnyString
 from arclet.alconna import Alconna, CommandMeta, Args
 require("nonebot_plugin_alconna")
-from nonebot_plugin_alconna import on_alconna, Match, get_message_id, AlconnaMatch  # noqa: E402
-from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply  # noqa: E402
+from nonebot_plugin_alconna import on_alconna, Match, AlconnaMatch  # noqa: E402
+from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply, MsgId, UniMsg  # noqa: E402
 from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 
 class QuotationPluginConfig(BaseModel):
@@ -60,6 +60,9 @@ quotation_matcher = on_alconna(
     priority=2,
     block=True)
 
+async def perm_checker(bot: Bot, event: Event) -> bool:
+    return event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user
+
 class QuotationTrustedUserPermissionExtension(Extension):
     @property
     def priority(self) -> int:
@@ -70,7 +73,7 @@ class QuotationTrustedUserPermissionExtension(Extension):
         return "QuotationTrustedUserPermissionExtension"
     
     async def permission_check(self, bot, event, medium) -> bool:
-        return event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user
+        return await perm_checker(bot, event)
 
 quotation_update = on_alconna(
     Alconna("更新语录", meta=CommandMeta(description="刷新怪话缓存", hide=True, hide_shortcut=True)),
@@ -138,13 +141,13 @@ quotation_symlink_del = on_alconna(
     block=True)
 
 @quotation_matcher.handle()
-async def qm_handler(person : Match[str], state: T_State):
+async def qm_handler(person : Match[str], state: T_State, msg_id: MsgId):
     path = await send_quo(person.result)
     state["quotation_last_path"] = path
-    await UniMessage([Reply(get_message_id()), Image(raw=path.read_bytes())]).send()
+    await UniMessage([Reply(msg_id), Image(raw=path.read_bytes())]).send()
 
 async def quotation_checker(bot: Bot, event: Event = Received("delete_quote")) -> Event | None:
-    if str(event.get_message()) == "删除语录" and (event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user):
+    if event.get_message().extract_plain_text() == "删除语录" and await perm_checker(bot, event):
         return event
     else:
         await handle_event(bot, event)
@@ -156,7 +159,6 @@ async def quotation_receive(matcher: Matcher, state: T_State, event: Event = Dep
         await matcher.finish("删除成功")
     except FileNotFoundError:
         await matcher.finish("文件未找到")
-        
 
 @quotation_update.handle()
 async def quotation_update_handler(matcher: Matcher):
@@ -179,29 +181,24 @@ async def quotation_add_handler(person : Match[str], state: T_State):
     state["add_path"] = person.result
 
 @quotation_add.got("arg", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
-async def quotation_add_got(matcher: Matcher, bot: Bot, event: Event, state: T_State, arg: Message = Arg()):
-    if "image" not in arg:
+async def quotation_add_got(matcher: Matcher, bot: Bot, event: Event, state: T_State, msg: UniMsg):
+    if not msg.has(Image):
         await matcher.finish("添加出错请重新添加 (回复中需要包含至少一张图片)")
-    if(event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user):
-        for pic in arg.get("image"):
-            image_url = pic.data["url"]
-        try:
-            await save_pic(state["add_path"], image_url)
-        except Exception:
-            await matcher.finish("添加失败了哦，请重新添加")
-        else:
-            await matcher.finish("添加成功")
+    if await perm_checker(bot, event):
+        for image in msg[Image]:
+            try:
+                await save_pic(state["add_path"], image.raw_bytes)
+            except Exception:
+                await matcher.finish("添加失败了哦，请重新添加")
     else:
-        for pic in arg.get("image"):
-            image_url = pic.data["url"]
+        image = msg[Image, 0]
         try: 
-            await save_pic_audit(state["add_path"], image_url, event.get_user_id())
+            await save_pic_audit(state["add_path"], image.raw_bytes, event.get_user_id())
         except AlreadyExistsError:
             await matcher.finish("你已经有待审查的语录了哦，请等待审查结果")
         except Exception:
             await matcher.finish("添加失败了哦，请重新添加")
-        else:
-            await matcher.finish("添加成功，等待审查")
+    await matcher.finish("添加成功，等待审查")
 
 # audit 
 @quotation_audit.handle()
@@ -222,14 +219,14 @@ async def quotation_audit_handler(matcher: Matcher, state: T_State):
 async def quotation_audit_got(matcher: Matcher, state: T_State, arg_audit: Message = Arg()):
     if not state["audit_path"].is_file():
         await matcher.finish("需要审查的语录已经被审查")
-    if str(arg_audit) == "通过":
+    if arg_audit.extract_plain_text() == "通过":
         try:
             await rename_pic(state["audit_path"])
         except Exception:
             await matcher.finish("审查通过，但添加至语录失败了")
         else:
             await matcher.finish("审查通过，已添加至语录")
-    elif str(arg_audit) == "拒绝":
+    elif arg_audit.extract_plain_text() == "拒绝":
         state["audit_path"].unlink()
         await matcher.finish("审查拒绝，已删除待审查语录")
     else:
