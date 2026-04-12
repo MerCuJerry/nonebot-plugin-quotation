@@ -29,7 +29,7 @@ from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 class Config(BaseModel):
     trusted_user: list = []
 
-__version__ = "0.1.0"
+__version__ = "0.1.0.post1"
 __plugin_meta__ = PluginMetadata(
     name="Quotation",
     description="简单的语录插件",
