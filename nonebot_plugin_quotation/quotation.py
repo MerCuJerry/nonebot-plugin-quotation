@@ -12,18 +12,22 @@ import nonebot_plugin_localstore as store  # noqa: E402
 class AlreadyExistsError(Exception):
     pass
 
+QUOTATION_DATA_DIR = store.get_plugin_data_dir()
+QUOTATION_CACHE_DIR = store.get_plugin_cache_dir()
+QUOTATION_CONFIG_DIR = store.get_plugin_config_dir()
+
 async def init_quotation():
-    for QUO_DIR in store.get_plugin_data_dir().iterdir():
+    for QUO_DIR in QUOTATION_DATA_DIR.iterdir():
         if not QUO_DIR.is_symlink():
-            store.get_plugin_config_file(str(QUO_DIR.name + ".json")).write_text(
+            (QUOTATION_CONFIG_DIR / str(QUO_DIR.name + ".json")).write_text(
                 JSONEncoder().encode( [key.name for key in QUO_DIR.iterdir()] ),
                 encoding="u8",
             )
 
 
 async def send_quo(args: str) -> Path:
-    QUO_DIR = store.get_plugin_data_dir() / args
-    ENSURE_THIS_PATH =  store.get_plugin_config_file(str(args + ".json")) if not QUO_DIR.is_symlink() else store.get_plugin_config_file(str(QUO_DIR.readlink().name + ".json"))
+    QUO_DIR = QUOTATION_DATA_DIR / args
+    ENSURE_THIS_PATH =  (QUOTATION_CONFIG_DIR / str(args + ".json")) if not QUO_DIR.is_symlink() else (QUOTATION_CONFIG_DIR / str(QUO_DIR.readlink().name + ".json"))
     ensure_pic_use: List[str] = JSONDecoder().decode(ENSURE_THIS_PATH.read_text(encoding="u8"))
     try:
         randompic = random.choice(ensure_pic_use)
@@ -37,7 +41,7 @@ async def send_quo(args: str) -> Path:
 
 async def return_index() -> List[str]:
     try:
-        return [key.name for key in store.get_plugin_data_dir().iterdir()]
+        return [key.name for key in QUOTATION_DATA_DIR.iterdir()]
     except ValueError as e:
         raise e from e
 
@@ -50,7 +54,7 @@ async def download_pic(url: str) -> Tuple[bytes, str]:
     
 async def save_pic(arg: str, path: Optional[Path] = None, url: Optional[str] = None):
     assert arg != "" and arg is not None
-    QUO_DIR = store.get_plugin_data_dir() / arg
+    QUO_DIR = QUOTATION_DATA_DIR / arg
     if not QUO_DIR.exists():
         QUO_DIR.mkdir(parents=False)
     if path is not None:
@@ -62,44 +66,44 @@ async def save_pic(arg: str, path: Optional[Path] = None, url: Optional[str] = N
 
 async def save_pic_audit(arg: str, sender: str, path: Optional[Path] = None, url: Optional[str] = None):
     assert arg != "" and arg is not None
-    list_return = [key.name for key in (store.get_plugin_cache_dir()).glob("*@" + sender + "@*")]
+    list_return = [key.name for key in QUOTATION_CACHE_DIR.glob("*@" + sender + "@*")]
     if len(list_return) != 0:
         raise AlreadyExistsError()
     if path is not None:
-        path.rename(store.get_plugin_cache_file(
+        path.rename(QUOTATION_CACHE_DIR /
             str(arg + "@" + sender + "@" + path.name + path.suffix)
-        ))
+        )
     elif url is not None:
         image_bytes, md5_hex = await download_pic(url)
-        store.get_plugin_cache_file(
+        (QUOTATION_CACHE_DIR /
             str(arg + "@" + sender + "@" + md5_hex + ".jpg")
         ).write_bytes(image_bytes)
 
 async def rename_pic(path: Path):
     assert path is not None
-    QUO_DIR = store.get_plugin_data_dir() / path.name.split("@", -1)[0]
+    QUO_DIR = QUOTATION_DATA_DIR / path.name.split("@", -1)[0]
     if not QUO_DIR.exists():
         QUO_DIR.mkdir(parents=False)
     NEW_PATH = QUO_DIR / path.name.split("@", -1)[2]
     path.rename(NEW_PATH)
 
 async def audit() -> Optional[Path]:
-    list_return = [key for key in (store.get_plugin_cache_dir()).iterdir()]
+    list_return = [key for key in QUOTATION_CACHE_DIR.iterdir()]
     if len(list_return) == 0:
         return None
     randompic = random.choice(list_return)
     return randompic
 
 async def return_symlink() -> Dict[Path, Path]:
-    return {dir : dir.readlink() for dir in store.get_plugin_data_dir().iterdir() if dir.is_symlink()}
+    return {dir : dir.readlink() for dir in QUOTATION_DATA_DIR.iterdir() if dir.is_symlink()}
 
 async def create_symlink(dir: str, target: str):
-    SYMLINK_PATH = store.get_plugin_data_dir() / dir
+    SYMLINK_PATH = QUOTATION_DATA_DIR / dir
     assert not SYMLINK_PATH.exists()
-    TGT_PATH = store.get_plugin_data_dir() / target
+    TGT_PATH = QUOTATION_DATA_DIR / target
     SYMLINK_PATH.symlink_to(TGT_PATH.name, True)
 
 async def del_symlink(arg: str):
-    SYMLINK_PATH = store.get_plugin_data_dir() / arg
+    SYMLINK_PATH = QUOTATION_DATA_DIR / arg
     assert SYMLINK_PATH.exists() and SYMLINK_PATH.is_symlink()
     SYMLINK_PATH.unlink()

@@ -28,23 +28,25 @@ from nonebot_plugin_alconna import on_alconna, Match, AlconnaMatch, AlconnaMatch
 from nonebot_plugin_alconna.uniseg import Image, UniMessage, Reply, MsgId  # noqa: E402
 from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 
-class QuotationPluginConfig(BaseModel):
+class QuotationPluginConfigModel(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.1.post2"
+__version__ = "0.1.1.post3"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
     usage="来点",
     type="application",
     homepage="https://github.com/MerCuJerry/nonebot-plugin-quotation",
-    config=QuotationPluginConfig,
+    config=QuotationPluginConfigModel,
     supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna"),
     extra={
         "version": __version__,
         "author": "MerCuJerry <mercujerry@gmail.com>",
     },
 )
+
+QuotationPluginConfig: QuotationPluginConfigModel = get_plugin_config(QuotationPluginConfigModel)
 
 async def checker(person: Match[str]) -> bool:
     try:
@@ -61,7 +63,7 @@ quotation_matcher = on_alconna(
     block=True)
 
 async def perm_checker(bot: Bot, event: Event) -> bool:
-    return event.get_user_id() in bot.config.superusers or event.get_user_id() in get_plugin_config(QuotationPluginConfig).trusted_user
+    return event.get_user_id() in bot.config.superusers or event.get_user_id() in QuotationPluginConfig.trusted_user
 
 class QuotationTrustedUserPermissionExtension(Extension):
     @property
