@@ -46,7 +46,7 @@ __plugin_meta__ = PluginMetadata(
     },
 )
 
-QuotationPluginConfig: QuotationPluginConfigModel = get_plugin_config(QuotationPluginConfigModel)
+quotation_plugin_config: QuotationPluginConfigModel = get_plugin_config(QuotationPluginConfigModel)
 
 async def checker(person: Match[str]) -> bool:
     try:
@@ -63,7 +63,7 @@ quotation_matcher = on_alconna(
     block=True)
 
 async def perm_checker(bot: Bot, event: Event) -> bool:
-    return event.get_user_id() in bot.config.superusers or event.get_user_id() in QuotationPluginConfig.trusted_user
+    return event.get_user_id() in bot.config.superusers or event.get_user_id() in quotation_plugin_config.trusted_user
 
 class QuotationTrustedUserPermissionExtension(Extension):
     @property
