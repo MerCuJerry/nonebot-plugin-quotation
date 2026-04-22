@@ -12,6 +12,9 @@ import nonebot_plugin_localstore as store  # noqa: E402
 class AlreadyExistsError(Exception):
     pass
 
+class NeedUpdateError(Exception):
+    pass
+
 QUOTATION_DATA_DIR = store.get_plugin_data_dir()
 QUOTATION_CACHE_DIR = store.get_plugin_cache_dir()
 QUOTATION_CONFIG_DIR = store.get_plugin_config_dir()
@@ -27,8 +30,11 @@ async def init_quotation():
 
 async def send_quo(args: str) -> Path:
     QUO_DIR = QUOTATION_DATA_DIR / args
-    ENSURE_THIS_PATH =  (QUOTATION_CONFIG_DIR / str(args + ".json")) if not QUO_DIR.is_symlink() else (QUOTATION_CONFIG_DIR / str(QUO_DIR.readlink().name + ".json"))
-    ensure_pic_use: List[str] = JSONDecoder().decode(ENSURE_THIS_PATH.read_text(encoding="u8"))
+    ENSURE_THIS_PATH = (QUOTATION_CONFIG_DIR / str(args + ".json")) if not QUO_DIR.is_symlink() else (QUOTATION_CONFIG_DIR / str(QUO_DIR.readlink().name + ".json"))
+    try:
+        ensure_pic_use: List[str] = JSONDecoder().decode(ENSURE_THIS_PATH.read_text(encoding="u8"))
+    except FileNotFoundError as e: 
+        raise NeedUpdateError() from e
     try:
         randompic = random.choice(ensure_pic_use)
     except IndexError:

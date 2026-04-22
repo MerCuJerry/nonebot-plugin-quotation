@@ -17,8 +17,8 @@ from .quotation import (
     audit,
     save_pic_audit,
     rename_pic,
-    AlreadyExistsError
 )
+from .quotation import AlreadyExistsError, NeedUpdateError
 from typing import List
 
 from nepattern import AnyString
@@ -31,7 +31,7 @@ from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 class QuotationPluginConfigModel(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.2"
+__version__ = "0.1.2.post1"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
@@ -143,10 +143,15 @@ quotation_symlink_del = on_alconna(
     block=True)
 
 @quotation_matcher.handle()
-async def qm_handler(person : Match[str], state: T_State, msg_id: MsgId):
-    path = await send_quo(person.result)
-    state["quotation_last_path"] = path
-    await UniMessage([Reply(msg_id), Image(raw=path.read_bytes())]).send()
+async def qm_handler(matcher: AlconnaMatcher, person : Match[str], state: T_State, msg_id: MsgId):
+    try:
+        path = await send_quo(person.result)
+        state["quotation_last_path"] = path
+        await UniMessage([Reply(msg_id), Image(raw=path.read_bytes())]).send()
+    except NeedUpdateError as e:
+        await matcher.finish("语录需要更新，请先执行更新操作")
+    except Exception as e:
+        await matcher.finish("发生未知错误" + str(e))
 
 async def quotation_checker(bot: Bot, event: Event = Received("delete_quote")) -> Event | None:
     if event.get_message().extract_plain_text() == "删除语录" and await perm_checker(bot, event):
@@ -184,12 +189,17 @@ async def quotation_add_handler(
     matcher: AlconnaMatcher,
     bot: Bot,
     event: Event,
+    msg_id: MsgId,
     person : Match[str],
-    image: Match[Image]):
+    image: Match[Image]
+    ):
     if image.available:
         image_result = image.result
     else:
-        resp = await matcher.prompt(MessageTemplate("请发送要添加至{person}的图片"), timeout=20)
+        resp = await matcher.prompt(
+            UniMessage.template("{:Reply(msg_id)}请发送要添加至{person}的图片").format(msg_id=msg_id, person=person.result),
+            timeout=20
+        )
         if resp is None:
             await matcher.finish("添加超时了哦，请重新添加")
         elif not resp.has(Image):
