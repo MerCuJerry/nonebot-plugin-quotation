@@ -31,7 +31,7 @@ from nonebot_plugin_alconna.extension import Extension  # noqa: E402
 class QuotationPluginConfigModel(BaseModel):
     trusted_user: List[str] = Field(default=[], alias="quotation_trusted_user", description="受信任的用户列表，列表内用户可以直接添加语录和审查语录")
 
-__version__ = "0.1.1.post3"
+__version__ = "0.1.2"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
@@ -180,19 +180,28 @@ async def quotation_query_handler(matcher: Matcher):
 
 # quote add
 @quotation_add.handle()
-async def quotation_add_handler(matcher: AlconnaMatcher, person : Match[str], state: T_State, image: Match[Image]):
-    state["add_path"] = person.result
+async def quotation_add_handler(
+    matcher: AlconnaMatcher,
+    bot: Bot,
+    event: Event,
+    person : Match[str],
+    image: Match[Image]):
     if image.available:
-        matcher.set_path_arg("image", image.result)
-
-@quotation_add.got_path("image", prompt=MessageTemplate("请发送要添加至{add_path}的图片"))
-async def quotation_add_got(matcher: AlconnaMatcher, bot: Bot, event: Event, state: T_State, image: Image):
+        image_result = image.result
+    else:
+        resp = await matcher.prompt(MessageTemplate("请发送要添加至{person}的图片"), timeout=20)
+        if resp is None:
+            await matcher.finish("添加超时了哦，请重新添加")
+        elif not resp.has(Image):
+            await matcher.finish("发送的消息里没有图片哦，请重新添加")
+        else:
+            image_result : Image = resp.get(Image, 1)[0]
     if await perm_checker(bot, event):
         try:
-            if image.raw:
-                await save_pic(state["add_path"], path=image.save())
-            elif image.url:
-                await save_pic(state["add_path"], url=image.url)
+            if image_result.raw:
+                await save_pic(person.result, path=image_result.save())
+            elif image_result.url:
+                await save_pic(person.result, url=image_result.url)
         except Exception as e:
             logger.error(e)
             await matcher.finish("添加失败了哦，请重新添加")
@@ -200,10 +209,10 @@ async def quotation_add_got(matcher: AlconnaMatcher, bot: Bot, event: Event, sta
             await matcher.finish("添加成功，已添加至语录")
     else:
         try:
-            if image.raw:
-                await save_pic_audit(state["add_path"], event.get_user_id(), path=image.save())
-            elif image.url:
-                await save_pic_audit(state["add_path"], event.get_user_id(), url=image.url)
+            if image_result.raw:
+                await save_pic_audit(person.result, event.get_user_id(), path=image_result.save())
+            elif image_result.url:
+                await save_pic_audit(person.result, event.get_user_id(), url=image_result.url)
         except AlreadyExistsError as e:
             logger.error(e)
             await matcher.finish("你已经有待审查的语录了哦，请等待审查结果")

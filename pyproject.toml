@@ -1,6 +1,6 @@
 [project]
 name = "nonebot-plugin-quotation"
-version = "0.1.1.post3"
+version = "0.1.2"
 description = "Simple quotation plugin"
 readme = "README.md"
 keywords = ["nonebot", "nonebot2", "qqbot", "bot"]
