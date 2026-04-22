@@ -151,6 +151,7 @@ async def qm_handler(matcher: AlconnaMatcher, person : Match[str], state: T_Stat
     except NeedUpdateError as e:
         await matcher.finish("语录需要更新，请先执行更新操作")
     except Exception as e:
+        logger.error(e)
         await matcher.finish("发生未知错误" + str(e))
 
 async def quotation_checker(bot: Bot, event: Event = Received("delete_quote")) -> Event | None:
