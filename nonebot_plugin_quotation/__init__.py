@@ -12,6 +12,7 @@ from nonebot.adapters import Bot, Event, Message, MessageTemplate
 from .quotation import (
     NeedUpdateError,
     AlreadyExistsError,
+    DownloadImageError,
     audit,
     save_pic,
     send_quo,
@@ -38,7 +39,7 @@ class QuotationPluginConfigModel(BaseModel):
     )
 
 
-__version__ = "0.1.2.post1"
+__version__ = "0.1.3"
 __plugin_meta__ = PluginMetadata(
     name="语录插件",
     description="基于Alconna的简单的语录插件, 支持添加语录别名以及审查用户添加的语录",
@@ -203,6 +204,7 @@ async def qm_handler(
         state["quotation_last_path"] = path
         await UniMessage([Reply(msg_id), Image(raw=path.read_bytes())]).send()
     except NeedUpdateError as e:
+        logger.error(e)
         await matcher.finish("语录需要更新，请先执行更新操作")
     except Exception as e:
         logger.error(e)
@@ -280,6 +282,9 @@ async def quotation_add_handler(
                 await save_pic(person.result, path=image_result.save())
             elif image_result.url:
                 await save_pic(person.result, url=image_result.url)
+        except DownloadImageError as e:
+            logger.error(e)
+            await matcher.finish("下载图片失败，请重新添加")
         except Exception as e:
             logger.error(e)
             await matcher.finish("添加失败了哦，请重新添加")
@@ -298,6 +303,9 @@ async def quotation_add_handler(
         except AlreadyExistsError as e:
             logger.error(e)
             await matcher.finish("你已经有待审查的语录了哦，请等待审查结果")
+        except DownloadImageError as e:
+            logger.error(e)
+            await matcher.finish("下载图片失败，请重新添加")
         except Exception as e:
             logger.error(e)
             await matcher.finish("添加失败了哦，请重新添加")

@@ -19,6 +19,10 @@ class NeedUpdateError(Exception):
     pass
 
 
+class DownloadImageError(Exception):
+    pass
+
+
 QUOTATION_DATA_DIR = store.get_plugin_data_dir()
 QUOTATION_CACHE_DIR = store.get_plugin_cache_dir()
 QUOTATION_CONFIG_DIR = store.get_plugin_config_dir()
@@ -71,6 +75,8 @@ async def download_pic(url: str) -> tuple[bytes, str]:
     )
     async with AsyncClient(verify=ctx) as client:
         image = await client.get(url)
+        if image.status_code != 200:
+            raise DownloadImageError()
         return image.content, hashlib.md5(image.content).hexdigest()
 
 
